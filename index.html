@@ -284,6 +284,85 @@
 
     .error { color: #dc2626; font-size: 0.8rem; margin-top: 6px; display: none; }
     .error.visible { display: block; }
+
+    /* 壁材質セレクター */
+    .wall-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .wall-option {
+      border: 2px solid #dde3ea;
+      border-radius: 10px;
+      padding: 12px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      user-select: none;
+    }
+
+    .wall-option:hover { border-color: #a0b8d0; background: #f7fafd; }
+
+    .wall-option.selected {
+      border-color: #1a3a5c;
+      background: #eef4fa;
+    }
+
+    .wall-option .wall-icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+    .wall-option .wall-name {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #333;
+      display: block;
+    }
+    .wall-option.selected .wall-name { color: #1a3a5c; }
+
+    /* 固定方法カード */
+    .fastener-card {
+      display: none;
+      margin-top: 14px;
+      background: #eef4fa;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .fastener-card.visible { display: block; }
+    .fastener-card .fastener-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1a3a5c;
+      margin-bottom: 8px;
+    }
+    .fastener-item {
+      font-size: 0.85rem;
+      color: #333;
+      padding: 5px 0;
+      border-bottom: 1px solid #d8e8f4;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .fastener-item:last-of-type { border-bottom: none; }
+    .fastener-item .tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tag-main { background: #1a3a5c; color: white; }
+    .tag-alt  { background: #dde3ea; color: #555; }
+    .fastener-warn {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: #b45309;
+      background: #fffbeb;
+      border-left: 3px solid #f59e0b;
+      padding: 6px 10px;
+      border-radius: 4px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -305,6 +384,44 @@
         <label for="indoor">屋内（E管）</label>
         <input type="radio" name="location" id="outdoor" value="outdoor" />
         <label for="outdoor">屋外（G管）</label>
+      </div>
+    </div>
+
+    <!-- 壁の材質 -->
+    <div class="field">
+      <label>壁の材質</label>
+      <div class="hint">支持材の固定方法の候補を表示します</div>
+      <div class="wall-grid">
+        <div class="wall-option" id="wall-concrete" onclick="selectWall('concrete')">
+          <span class="wall-icon">🏗️</span>
+          <span class="wall-name">コンクリート</span>
+        </div>
+        <div class="wall-option" id="wall-alc" onclick="selectWall('alc')">
+          <span class="wall-icon">🧱</span>
+          <span class="wall-name">ALC</span>
+        </div>
+        <div class="wall-option" id="wall-wood" onclick="selectWall('wood')">
+          <span class="wall-icon">🪵</span>
+          <span class="wall-name">木造（木下地）</span>
+        </div>
+        <div class="wall-option" id="wall-steel" onclick="selectWall('steel')">
+          <span class="wall-icon">🔩</span>
+          <span class="wall-name">鉄骨（スチール）</span>
+        </div>
+        <div class="wall-option" id="wall-board" onclick="selectWall('board')">
+          <span class="wall-icon">📋</span>
+          <span class="wall-name">石膏ボード</span>
+        </div>
+        <div class="wall-option" id="wall-block" onclick="selectWall('block')">
+          <span class="wall-icon">🧊</span>
+          <span class="wall-name">ブロック・レンガ</span>
+        </div>
+      </div>
+
+      <div class="fastener-card" id="fastener-card">
+        <div class="fastener-title" id="fastener-title"></div>
+        <div id="fastener-items"></div>
+        <div class="fastener-warn" id="fastener-warn"></div>
       </div>
     </div>
 
@@ -332,7 +449,7 @@
       <span><span class="count" id="r-pipe">-</span><span class="unit">本</span></span>
     </div>
     <div class="result-item">
-      <span class="name">カップリング</span>
+      <span class="name" id="coupling-label">カップリング</span>
       <span><span class="count" id="r-coupling">-</span><span class="unit">個</span></span>
     </div>
     <div class="result-item">
@@ -342,7 +459,7 @@
 
     <div class="result-section-label">末端処理 内訳</div>
     <div class="result-item" id="row-t-pullbox">
-      <span class="name">プルボックス接続</span>
+      <span class="name">プールボックス接続</span>
       <span><span class="count" id="r-t-pullbox">-</span><span class="unit">か所</span></span>
     </div>
     <div class="result-item" id="row-t-box">
@@ -377,6 +494,21 @@
     </div>
 
     <div class="note" id="result-note"></div>
+    <div class="note caulk-note" id="caulk-note" style="display:none; margin-top:8px; border-left-color:#3b82f6; background:#eff6ff; color:#1e3a5f; line-height:1.8;">
+      🔵 <strong>【屋外×プールボックス 防水処理について】</strong><br>
+      <br>
+      <strong>① 管との接続部</strong><br>
+      プールボックスと金属管の接続部・ノックアウト周囲にコーキング処理を施すこと。<br>
+      <br>
+      <strong>② 設置面のコーキング</strong><br>
+      壁への取付面は<strong>上辺・左辺・右辺の3辺</strong>をコーキングすること。<br>
+      ※ 下辺はコーキングしない（水抜きのため）<br>
+      <br>
+      <strong>③ 水抜き穴の施工</strong><br>
+      ボックス下部に<strong>水抜き穴（φ5〜8mm程度）</strong>の施工を推奨。内部結露・浸水時の排水を確保すること。<br>
+      <br>
+      使用材料：変成シリコン系シーリング材（耐候性タイプ）
+    </div>
     <button class="btn-reset" onclick="reset()">もう一度計算する</button>
   </div>
 </div>
@@ -389,8 +521,91 @@
   const PIPE_LENGTH    = 3.66;
   const SADDLE_INTERVAL = 1.5;
 
+  const WALL_DATA = {
+    concrete: {
+      label: 'コンクリート',
+      items: [
+        { tag: '主', label: 'コンクリートビス（サンコンクリートビス等）' },
+        { tag: '主', label: 'プラグ＋木ビス（樹脂プラグ使用）' },
+        { tag: '重荷重', label: 'アンカーボルト（M6以上）' },
+      ],
+      warn: '振動ドリルで下穴が必要。ビスサイズはサドルの穴径に合わせること。'
+    },
+    alc: {
+      label: 'ALC（軽量気泡コンクリート）',
+      items: [
+        { tag: '主', label: 'ALCビス（専用品）' },
+        { tag: '主', label: 'ALCアンカー（専用品）' },
+      ],
+      warn: '⚠️ 普通のコンクリートビス・プラグは効かない。必ずALC専用品を使うこと。'
+    },
+    wood: {
+      label: '木造（木下地）',
+      items: [
+        { tag: '主', label: '木ビス（コーススレッド）' },
+        { tag: '主', label: 'タッピングビス' },
+      ],
+      warn: '下地（柱・間柱）の位置を確認してからビス打ちすること。ボードのみへの固定は避ける。'
+    },
+    steel: {
+      label: '鉄骨（スチール下地）',
+      items: [
+        { tag: '主', label: 'ドリルビス（テックスビス）' },
+        { tag: '別途資格', label: '溶接（点付け）' },
+      ],
+      warn: 'ドリルビスの長さは鉄骨の板厚＋サドル厚を考慮して選定。板厚2.3mm超はサイズ注意。'
+    },
+    board: {
+      label: '石膏ボード',
+      items: [
+        { tag: '下地あり', label: '木ビス（下地の柱に打つ）' },
+        { tag: '下地なし', label: 'ボードアンカー / 中空アンカー' },
+      ],
+      warn: '⚠️ ボードのみへの固定は荷重限界が低い。重量のある配管は必ず下地に固定すること。'
+    },
+    block: {
+      label: 'ブロック・レンガ',
+      items: [
+        { tag: '主', label: 'プラグ＋ビス（樹脂プラグ）' },
+        { tag: '重荷重', label: 'アンカーボルト（M6以上）' },
+      ],
+      warn: '縦目地・欠けた部分へのビス打ちは避ける。下穴はブロックの中央部（目地を避ける）に。'
+    },
+  };
+
+  let selectedWall = null;
+
+  function selectWall(key) {
+    // 前の選択を解除
+    if (selectedWall) {
+      document.getElementById('wall-' + selectedWall).classList.remove('selected');
+    }
+    // 同じものをクリックしたら解除
+    if (selectedWall === key) {
+      selectedWall = null;
+      document.getElementById('fastener-card').classList.remove('visible');
+      return;
+    }
+    selectedWall = key;
+    document.getElementById('wall-' + key).classList.add('selected');
+
+    const data = WALL_DATA[key];
+    document.getElementById('fastener-title').textContent = '【' + data.label + '】固定方法の候補';
+
+    const itemsEl = document.getElementById('fastener-items');
+    itemsEl.innerHTML = data.items.map(item =>
+      `<div class="fastener-item">
+        <span class="tag ${item.tag === '主' || item.tag === '下地あり' ? 'tag-main' : 'tag-alt'}">${item.tag}</span>
+        <span>${item.label}</span>
+      </div>`
+    ).join('');
+
+    document.getElementById('fastener-warn').textContent = data.warn;
+    document.getElementById('fastener-card').classList.add('visible');
+  }
+
   const END_OPTIONS = [
-    { value: 'pullbox',   label: 'プルボックス接続' },
+    { value: 'pullbox',   label: 'プールボックス接続' },
     { value: 'box',       label: '丸ボックス・角ボックス' },
     { value: 'cap',       label: 'サンピーキャップ' },
     { value: 'connector', label: 'コネクタのみ' },
@@ -597,15 +812,21 @@
 
     if (location === 'outdoor') {
       pipeLabel.textContent = '金属管（G管 / 厚鋼電線管）';
+      document.getElementById('coupling-label').textContent = '防水カップリング';
       note.innerHTML =
         '📍 <strong>材質推奨：どぶ漬け（溶融亜鉛メッキ）またはステンレス製</strong>を使用してください。<br>' +
         '屋外は腐食リスクがあるため、一般品（黒管）の使用は避けること。<br>' +
         '計算値は最低限の数量です。+10%程度の余裕を推奨します。';
     } else {
       pipeLabel.textContent = '金属管（E管 / ねじなし電線管）';
+      document.getElementById('coupling-label').textContent = 'カップリング';
       note.innerHTML =
         '計算値は最低限の数量です。損失・予備を考慮して+10%程度の余裕を持たせることを推奨します。';
     }
+
+    // 屋外 × プールボックスの場合のみコーキング注記を表示
+    const showCaulk = location === 'outdoor' && tPullbox > 0;
+    document.getElementById('caulk-note').style.display = showCaulk ? 'block' : 'none';
 
     document.getElementById('result').classList.add('visible');
     document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });

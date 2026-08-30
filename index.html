@@ -363,6 +363,60 @@
       border-radius: 4px;
       line-height: 1.5;
     }
+
+    /* ── 呼び径・役物入力（2026-08-06 追加）。既存のクラスは変更していない ── */
+    .size-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .size-btn {
+      background: white; border: 2px solid #dde3ea; border-radius: 8px;
+      padding: 10px 14px; font-size: 0.95rem; font-weight: 700; color: #1a3a5c;
+      cursor: pointer; min-width: 64px; transition: all 0.15s;
+    }
+    .size-btn.selected { background: #1a3a5c; border-color: #1a3a5c; color: white; }
+
+    .rt-row { display: flex; align-items: center; gap: 8px; }
+    /* 最長ラベルは「次の延長」の4文字。68pxは余りすぎで、そのぶん役物カードの中の
+       セレクトが狭くなり「サンピーキャップ止め」が切れていた。 */
+    .rt-label { font-size: 0.8rem; color: #667; font-weight: 700; min-width: 56px; flex-shrink: 0; }
+    .rt-select {
+      flex: 1; min-width: 0; padding: 9px 10px; font-size: 0.9rem;
+      border: 1px solid #cfd8e3; border-radius: 8px; background: white; color: #1a3a5c;
+    }
+    .rt-num {
+      width: 92px; padding: 9px 10px; font-size: 1rem; font-weight: 700;
+      border: 1px solid #cfd8e3; border-radius: 8px; text-align: right; color: #1a3a5c;
+    }
+    .rt-unit { font-size: 0.8rem; color: #889; }
+
+    .rt-junction {
+      border: 1px solid #dbe6f2; border-left: 4px solid #4a7fb5; border-radius: 8px;
+      padding: 10px; background: #f7fafd;
+      display: flex; flex-direction: column; gap: 9px;
+    }
+    .rt-junction-head { display: flex; justify-content: space-between; align-items: center; }
+    .rt-junction-no { font-size: 0.78rem; font-weight: 700; color: #4a7fb5; letter-spacing: 0.05em; }
+
+    .rt-branch {
+      border-left: 3px solid #c3d5e8; border-radius: 6px;
+      padding: 8px 10px; margin-left: 8px; background: white;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .rt-branch-head {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.75rem; font-weight: 700; color: #7a8fa5;
+    }
+    /* 分岐は役物カードの中にさらに入れ子になるため、横に並べると
+       セレクトに97pxしか残らず「サンピーキャップ」が切れる。
+       階層のインデントは残したいので、分岐の中だけラベルを上に置く。 */
+    .rt-branch .rt-row { flex-wrap: wrap; row-gap: 4px; }
+    .rt-branch .rt-select { flex: 1 1 100%; }
+
+    .rt-add-sub {
+      background: none; border: 1px dashed #b9c9da; border-radius: 8px;
+      padding: 9px; font-size: 0.85rem; color: #4a7fb5; cursor: pointer; width: 100%;
+    }
+    .rt-add-sub:disabled { color: #aab; border-color: #e2e8f0; cursor: default; }
+
+    .tg-sub { display: block; font-size: 0.68rem; font-weight: 400; opacity: 0.75; }
   </style>
 </head>
 <body>
@@ -379,12 +433,32 @@
     <!-- 設置場所 -->
     <div class="field">
       <label>設置場所</label>
+      <div class="hint">防水材料・材質の推奨に反映されます</div>
       <div class="toggle-group">
-        <input type="radio" name="location" id="indoor" value="indoor" checked />
-        <label for="indoor">屋内（E管）</label>
-        <input type="radio" name="location" id="outdoor" value="outdoor" />
-        <label for="outdoor">屋外（G管）</label>
+        <input type="radio" name="location" id="indoor" value="indoor" checked onchange="onTopChange()" />
+        <label for="indoor">屋内</label>
+        <input type="radio" name="location" id="outdoor" value="outdoor" onchange="onTopChange()" />
+        <label for="outdoor">屋外</label>
       </div>
+    </div>
+
+    <!-- 管種 -->
+    <div class="field">
+      <label>管種</label>
+      <div class="toggle-group">
+        <input type="radio" name="pipekind" id="pk-E" value="E" checked onchange="onPipeKindChange()" />
+        <label for="pk-E">E管<span class="tg-sub">ねじなし電線管</span></label>
+        <input type="radio" name="pipekind" id="pk-G" value="G" onchange="onPipeKindChange()" />
+        <label for="pk-G">G管<span class="tg-sub">厚鋼電線管</span></label>
+      </div>
+    </div>
+
+    <!-- 呼び -->
+    <div class="field">
+      <label>呼び</label>
+      <div class="hint" id="size-hint">呼び径によって使える役物が変わります</div>
+      <div class="size-grid" id="size-grid"></div>
+      <div class="error" id="err-size">呼びを選択してください</div>
     </div>
 
     <!-- 壁の材質 -->
@@ -393,28 +467,25 @@
       <div class="hint">支持材の固定方法の候補を表示します</div>
       <div class="wall-grid">
         <div class="wall-option" id="wall-concrete" onclick="selectWall('concrete')">
-          <span class="wall-icon">🏗️</span>
-          <span class="wall-name">コンクリート</span>
+          <span class="wall-icon">🏗️</span><span class="wall-name">コンクリート</span>
         </div>
         <div class="wall-option" id="wall-alc" onclick="selectWall('alc')">
-          <span class="wall-icon">🧱</span>
-          <span class="wall-name">ALC</span>
+          <span class="wall-icon">🧱</span><span class="wall-name">ALC</span>
         </div>
         <div class="wall-option" id="wall-wood" onclick="selectWall('wood')">
-          <span class="wall-icon">🪵</span>
-          <span class="wall-name">木造（木下地）</span>
+          <span class="wall-icon">🪵</span><span class="wall-name">木造（木下地）</span>
         </div>
         <div class="wall-option" id="wall-steel" onclick="selectWall('steel')">
-          <span class="wall-icon">🔩</span>
-          <span class="wall-name">鉄骨（スチール）</span>
+          <span class="wall-icon">🔩</span><span class="wall-name">鉄骨（スチール）</span>
+        </div>
+        <div class="wall-option" id="wall-lgs" onclick="selectWall('lgs')">
+          <span class="wall-icon">🏢</span><span class="wall-name">軽天（LGS）</span>
         </div>
         <div class="wall-option" id="wall-board" onclick="selectWall('board')">
-          <span class="wall-icon">📋</span>
-          <span class="wall-name">石膏ボード</span>
+          <span class="wall-icon">📋</span><span class="wall-name">石膏ボード</span>
         </div>
         <div class="wall-option" id="wall-block" onclick="selectWall('block')">
-          <span class="wall-icon">🧊</span>
-          <span class="wall-name">ブロック・レンガ</span>
+          <span class="wall-icon">🧊</span><span class="wall-name">ブロック・レンガ</span>
         </div>
       </div>
 
@@ -428,12 +499,14 @@
     <!-- 配管ルート -->
     <div class="field">
       <label>配管ルート</label>
-      <div class="hint">ルートごとに延長と両端の施工方法を入力</div>
+      <div class="hint">上から下へ、現場を辿る順に入力します</div>
 
       <div class="route-list" id="route-list"></div>
 
       <button class="btn-add-route" onclick="addRoute()">＋ ルートを追加</button>
       <div class="error" id="err-routes">ルートを1本以上追加してください</div>
+      <div class="error" id="err-length">延長を1か所以上入力してください</div>
+      <div class="error" id="err-branch">分岐先の終端を選択してください</div>
     </div>
 
     <button class="btn-calc" onclick="calculate()">計算する</button>
@@ -444,83 +517,496 @@
     <h2>必要材料リスト</h2>
 
     <div class="result-section-label">配管材料</div>
-    <div class="result-item">
-      <span class="name" id="pipe-label">金属管（E管 / ねじなし電線管）</span>
-      <span><span class="count" id="r-pipe">-</span><span class="unit">本</span></span>
-    </div>
-    <div class="result-item">
-      <span class="name" id="coupling-label">カップリング</span>
-      <span><span class="count" id="r-coupling">-</span><span class="unit">個</span></span>
-    </div>
-    <div class="result-item">
-      <span class="name">サドル等（支持材）</span>
-      <span><span class="count" id="r-saddle">-</span><span class="unit">個</span></span>
-    </div>
+    <div id="sec-pipe"></div>
+
+    <div class="result-section-label">接続材料</div>
+    <div id="sec-connect"></div>
+
+    <div class="result-section-label" id="lbl-fitting">役物 内訳</div>
+    <div id="sec-fitting"></div>
 
     <div class="result-section-label">末端処理 内訳</div>
-    <div class="result-item" id="row-t-pullbox">
-      <span class="name">プールボックス接続</span>
-      <span><span class="count" id="r-t-pullbox">-</span><span class="unit">か所</span></span>
+    <div id="sec-terminal"></div>
+
+    <div class="note" id="note-caulk" style="display:none">
+      ※ 屋外のプールボックスは、電線引込口・蓋まわりのコーキング処理を忘れないこと。
     </div>
-    <div class="result-item" id="row-t-box">
-      <span class="name">丸ボックス・角ボックス接続</span>
-      <span><span class="count" id="r-t-box">-</span><span class="unit">か所</span></span>
-    </div>
-    <div class="result-item" id="row-t-cap">
-      <span class="name">サンピーキャップ</span>
-      <span><span class="count" id="r-t-cap">-</span><span class="unit">か所</span></span>
-    </div>
-    <div class="result-item" id="row-t-connector">
-      <span class="name">コネクタのみ施工</span>
-      <span><span class="count" id="r-t-connector">-</span><span class="unit">か所</span></span>
+    <div class="note">
+      ※ 支持間隔は2m、金属管の定尺は3.66m（12尺）で計算しています。<br>
+      ※ 数量は目安です。現場の納まりに合わせて余裕分を確認してください。
     </div>
 
-    <div class="result-section-label">末端処理材料</div>
-    <div class="result-item" id="row-connector">
-      <span class="name">コネクタ</span>
-      <span><span class="count" id="r-connector">-</span><span class="unit">個</span></span>
-    </div>
-    <div class="result-item" id="row-locknut">
-      <span class="name">ロックナット</span>
-      <span><span class="count" id="r-locknut">-</span><span class="unit">個</span></span>
-    </div>
-    <div class="result-item" id="row-bushing">
-      <span class="name">絶縁ブッシング</span>
-      <span><span class="count" id="r-bushing">-</span><span class="unit">個</span></span>
-    </div>
-    <div class="result-item" id="row-endcap">
-      <span class="name">エンドキャップ（サンピーキャップ）</span>
-      <span><span class="count" id="r-endcap">-</span><span class="unit">個</span></span>
-    </div>
-
-    <div class="note" id="result-note"></div>
-    <div class="note caulk-note" id="caulk-note" style="display:none; margin-top:8px; border-left-color:#3b82f6; background:#eff6ff; color:#1e3a5f; line-height:1.8;">
-      🔵 <strong>【屋外×プールボックス 防水処理について】</strong><br>
-      <br>
-      <strong>① 管との接続部</strong><br>
-      プールボックスと金属管の接続部・ノックアウト周囲にコーキング処理を施すこと。<br>
-      <br>
-      <strong>② 設置面のコーキング</strong><br>
-      壁への取付面は<strong>上辺・左辺・右辺の3辺</strong>をコーキングすること。<br>
-      ※ 下辺はコーキングしない（水抜きのため）<br>
-      <br>
-      <strong>③ 水抜き穴の施工</strong><br>
-      ボックス下部に<strong>水抜き穴（φ5〜8mm程度）</strong>の施工を推奨。内部結露・浸水時の排水を確保すること。<br>
-      <br>
-      使用材料：変成シリコン系シーリング材（耐候性タイプ）
-    </div>
-    <button class="btn-reset" onclick="reset()">もう一度計算する</button>
+    <button class="btn-reset" onclick="resetAll()">入力をリセット</button>
   </div>
 </div>
 
-<footer>
-  ※ 計算値は目安です。実際の現場では余裕分を確認してください。
-</footer>
-
 <script>
-  const PIPE_LENGTH    = 3.66;
-  const SADDLE_INTERVAL = 1.5;
+// ============================================================
+// 正本はアプリ版 data/tools/kankinkan-calculator.ts。ここはその複製。
+// 値やルールを変える場合は必ずアプリ側を先に直すこと（アプリ→WEBの一方向）。
+//
+// サイト版は型番を出さない（無料＝数量が分かる／PRO＝そのまま発注できる、の線引き）。
+// そのため型番マスタは持ち込まず、代わりに FITTING_AVAILABILITY を持つ。
+// ============================================================
 
+const PIPE_LENGTH    = 3.66;  // 金属管の定尺(12尺)。E管・G管とも同じ
+const SADDLE_INTERVAL = 2;    // 支持間隔(現場仕様・2026-07-31確定)。呼び径によらない
+
+const PIPE_KINDS = {
+  E: { label: 'ねじなし電線管', shortLabel: 'E', sizes: [19, 25, 31, 39, 51, 63, 75] },
+  G: { label: '厚鋼電線管',     shortLabel: 'G', sizes: [16, 22, 28, 36, 42, 54, 70, 82, 104] },
+};
+
+// ────────────────────────────────────────────────────────────
+// 🔴 呼び径ごとに選べる役物。
+//
+// アプリ版は型番マスタの引き当て結果で判定している（availableFittingKinds）。
+// サイト版は型番マスタを持たないので、その出力を生成して貼っている。
+//
+// 生成元 : data/tools/__tests__/kankinkan-fitting-availability.test.ts の EXPECTED
+// 生成日 : 2026-08-06
+//
+// ⚠️ 型番マスタを更新するとアプリ側のテストが落ちる。落ちたらここも貼り直すこと。
+//    アプリ側は落ちるが、こちらが古いままでも自動では分からない（別リポジトリ・CIなし）。
+//    手順は company/tool-dev/site-deploy.md に書いてある。
+// ────────────────────────────────────────────────────────────
+const ALL_FITTINGS  = ['round_box', 'square_box', 'elbow', 'normal_bend', 'pullbox', 'device'];
+const NO_SQUARE     = ['round_box', 'elbow', 'normal_bend', 'pullbox', 'device'];
+const LARGE_ONLY    = ['normal_bend', 'pullbox', 'device'];
+
+const FITTING_AVAILABILITY = {
+  E: { 19: ALL_FITTINGS, 25: ALL_FITTINGS, 31: ALL_FITTINGS,
+       39: NO_SQUARE, 51: NO_SQUARE, 63: LARGE_ONLY, 75: LARGE_ONLY },
+  G: { 16: ALL_FITTINGS, 22: ALL_FITTINGS, 28: ALL_FITTINGS,
+       36: NO_SQUARE, 42: NO_SQUARE,
+       54: LARGE_ONLY, 70: LARGE_ONLY, 82: LARGE_ONLY, 104: LARGE_ONLY },
+};
+
+// 端部(始端・終端・分岐先)の候補。
+// 役物(ノーマル・エルボ)は入らない。器具の2種も入らない(2026-07-31決定)。
+// 端部では「器具（コネクタ接続）＝コネクタのみ」と材料が完全に一致し、
+// 同じものを2つの名前で選ばせることになるため。
+const END_OPTIONS = [
+  { value: 'pullbox',    label: 'プールボックス' },
+  { value: 'round_box',  label: '丸ボックス' },
+  { value: 'square_box', label: '角ボックス' },
+  { value: 'cap',        label: 'サンピーキャップ' },
+  { value: 'connector',  label: 'コネクタのみ' },
+];
+
+const FITTING_OPTIONS = [
+  { value: 'round_box',   label: '丸ボックス',     sub: '方向を選びます' },
+  { value: 'square_box',  label: '角ボックス',     sub: '露出スイッチボックス（2方出）' },
+  { value: 'elbow',       label: 'エルボ',         sub: 'ユニバーサル' },
+  { value: 'normal_bend', label: 'ノーマルベンド', sub: '' },
+  { value: 'pullbox',     label: 'プールボックス', sub: '' },
+  { value: 'device',      label: '器具通過',       sub: 'コネクタ接続／サンピーキャップ止め' },
+];
+
+// 補足はアプリ版より短くしてある。役物カードは入れ子のぶん外側の行より約29px狭く、
+// アプリ版の「L字に曲げる」「まっすぐ通過」のままだと <select> の中で文字が切れる
+// （アプリ版は選択肢を2行で出せるので切れない）。
+// 分岐本数だけはラベルから読み取れないので残す。方向が分岐本数の正であるため。
+const ROUND_BOX_DIRECTION_OPTIONS = [
+  { value: 'right2',   label: '直角2方出', sub: 'L字' },
+  { value: 'through2', label: '2方出',     sub: '直線' },
+  { value: 'out3',     label: '3方出',     sub: '分岐1本' },
+  { value: 'out4',     label: '4方出',     sub: '分岐2本' },
+];
+
+// 補足はアプリ版より短い。理由は ROUND_BOX_DIRECTION_OPTIONS と同じ
+// （アプリ版の「同一平面上でL字（横→横）」は <select> の幅に対して105px溢れる）。
+// 向きの情報（横→横 / 横→手前）は残す。形状名だけでは区別できないため。
+const ELBOW_SHAPE_OPTIONS = [
+  { value: 'LL', label: 'LL形', sub: '横→横' },
+  { value: 'LB', label: 'LB形', sub: '横→手前' },
+  { value: 'T',  label: 'T形',  sub: '3方向' },
+];
+
+const DEVICE_CONNECTION_OPTIONS = [
+  { value: 'connector', label: 'コネクタ接続' },
+  { value: 'cap',       label: 'サンピーキャップ止め' },
+];
+
+// 丸ボックスの方向 → その方向が受け持つ分岐の本数。通過ぶんの2口は含まない。
+const ROUND_BOX_BRANCH_COUNT = { through2: 0, right2: 0, out3: 1, out4: 2 };
+
+// 端末のうち、発注時にボックスとして数えるもの
+const TERMINAL_BOX = {
+  pullbox:    { orderLabel: 'プールボックス',     needsSize: false },
+  round_box:  { orderLabel: '丸ボックス（1方出）', needsSize: true },
+  square_box: { orderLabel: '角ボックス（1方出）', needsSize: true },
+};
+
+const END_LABEL = Object.fromEntries(END_OPTIONS.map(o => [o.value, o.label]));
+
+// 役物内訳の表示順
+const FITTING_TALLY_ORDER = [
+  'round_box_right2', 'round_box_through2', 'round_box_out3', 'round_box_out4',
+  'square_box', 'elbow_LL', 'elbow_LB', 'elbow_T', 'normal_bend',
+  'pullbox', 'device_connector', 'device_cap',
+];
+
+// ────────────────────────────────────────────────────────────
+// 計算（アプリ版 calculateKankinkan の移植）
+// ────────────────────────────────────────────────────────────
+
+// 役物 → 材料計算上の種類
+function junctionPointType(j) {
+  if (j.kind === 'device') return j.deviceConnection === 'cap' ? 'device_cap' : 'device_connector';
+  return j.kind; // round_box / square_box / elbow / normal_bend / pullbox
+}
+
+// 分岐を持てるのは丸ボックスとプールボックスだけ。
+// 他の kind に branches が残っていても計算には混ぜない
+// （役物の種類を変えたときに古い分岐が生き残るのを防ぐ）。
+function branchesOf(j) {
+  return (j.kind === 'round_box' || j.kind === 'pullbox') ? (j.branches || []) : [];
+}
+
+// 管本数・カップリング・サドルは「区間ごと」に算出する。
+// 役物で管路は物理的に切れるため、ルート単位で合算してから割るとカップリング数が過大になる。
+function routeSegments(route) {
+  const segments = [route.length];
+  for (const j of route.junctions || []) {
+    segments.push(j.lengthAfter);
+    for (const b of branchesOf(j)) segments.push(b.length);
+  }
+  return segments;
+}
+
+// 接続点を「種類 × 口数」の列に展開する。
+//   始端・終端・分岐先 … 1口
+//   途中の役物         … 前区間1 + 後区間1 + 分岐本数
+function routePoints(route) {
+  const points = [{ type: route.start, ports: 1 }];
+  for (const j of route.junctions || []) {
+    const branches = branchesOf(j);
+    points.push({ type: junctionPointType(j), ports: 2 + branches.length, junction: j });
+    for (const b of branches) if (b.end) points.push({ type: b.end, ports: 1 });
+  }
+  points.push({ type: route.end, ports: 1 });
+  return points;
+}
+
+// ports = その点に接続される配管の本数
+function countMaterials(type, ports) {
+  switch (type) {
+    case 'pullbox':
+      // プールボックスは接続される配管の本数分だけ接続材が必要。
+      return { connector: ports, locknut: ports, bushing: ports, endcap: 0 };
+    case 'round_box':
+    case 'square_box':
+    case 'normal_bend':
+    case 'elbow':
+      // ボックス類・ノーマル・エルボは、管を役物へ直接差し込んで止めネジで固定する
+      // 施工が前提のため、コネクタ・ロックナット・ブッシングは発生しない
+      // (現場仕様・2026-07-31確定)。役物本体は役物内訳で1個ずつ計上する。
+      return { connector: 0, locknut: 0, bushing: 0, endcap: 0 };
+    case 'cap':
+    case 'device_cap':
+      return { connector: 0, locknut: 0, bushing: 0, endcap: ports };
+    case 'connector':
+    case 'device_connector':
+      // コネクタで留める接続は、相手がボックスでも器具でも施工が同じ
+      // (コネクタ + 内側のロックナット + 管端の絶縁ブッシング)。
+      return { connector: ports, locknut: ports, bushing: ports, endcap: 0 };
+    default:
+      return { connector: 0, locknut: 0, bushing: 0, endcap: 0 };
+  }
+}
+
+function emptyMaterials() { return { connector: 0, locknut: 0, bushing: 0, endcap: 0 }; }
+function addMaterials(dst, m) {
+  dst.connector += m.connector; dst.locknut += m.locknut;
+  dst.bushing   += m.bushing;   dst.endcap  += m.endcap;
+}
+
+// 役物1つを集計キー・ラベルへ変換する。
+// ボックス類は「この管サイズに対応するボックス」という意味で呼び径を併記する。
+// プールボックスだけは寸法選定が別問題なのでサイズを付けない。
+function fittingTallyOf(j) {
+  switch (j.kind) {
+    case 'round_box': {
+      const dir = j.roundBoxDirection || 'right2';
+      const label = (ROUND_BOX_DIRECTION_OPTIONS.find(o => o.value === dir) || {}).label || dir;
+      return { key: 'round_box_' + dir, label: '丸ボックス（' + label + '）', needsSize: true, unit: '個' };
+    }
+    case 'square_box':
+      return { key: 'square_box', label: '角ボックス（2方出）', needsSize: true, unit: '個' };
+    case 'elbow': {
+      const shape = j.elbowShape || 'LL';
+      const label = (ELBOW_SHAPE_OPTIONS.find(o => o.value === shape) || {}).label || shape;
+      return { key: 'elbow_' + shape, label: 'エルボ（' + label + '）', needsSize: true, unit: '個' };
+    }
+    case 'normal_bend':
+      return { key: 'normal_bend', label: 'ノーマルベンド', needsSize: true, unit: '個' };
+    case 'pullbox':
+      return { key: 'pullbox', label: 'プールボックス', needsSize: false, unit: '個' };
+    case 'device': {
+      const conn = j.deviceConnection || 'connector';
+      const label = conn === 'cap' ? 'サンピーキャップ止め' : 'コネクタ接続';
+      // 器具そのものは支給品なので「か所」で数える
+      return { key: 'device_' + conn, label: '器具通過（' + label + '）', needsSize: false, unit: 'か所' };
+    }
+  }
+}
+
+function calculateKankinkan(routes) {
+  const total = { totalLength: 0, pipes: 0, couplings: 0, saddles: 0, ...emptyMaterials() };
+  const fittingMap = new Map();
+  const terminalMap = new Map();
+
+  routes.forEach(route => {
+    routeSegments(route).forEach(len => {
+      if (!len) return;
+      total.totalLength += len;
+      const segPipes = Math.ceil(len / PIPE_LENGTH);
+      total.pipes     += segPipes;
+      total.couplings += Math.max(0, segPipes - 1);
+      total.saddles   += Math.ceil(len / SADDLE_INTERVAL);
+    });
+
+    routePoints(route).forEach(({ type, ports, junction }) => {
+      const m = countMaterials(type, ports);
+      // 最終トータルと内訳を同じ1回の走査で積む（表示側で足し直さない＝ズレようがない）
+      addMaterials(total, m);
+
+      if (junction) {
+        const t = fittingTallyOf(junction);
+        const row = fittingMap.get(t.key) || { ...t, count: 0, materials: emptyMaterials() };
+        row.count += 1; addMaterials(row.materials, m);
+        fittingMap.set(t.key, row);
+      } else {
+        const box = TERMINAL_BOX[type];
+        const row = terminalMap.get(type) || {
+          key: type,
+          label: END_LABEL[type] || type,
+          orderLabel: box ? box.orderLabel : (END_LABEL[type] || type),
+          needsSize: box ? box.needsSize : false,
+          count: 0, materials: emptyMaterials(), isBox: !!box,
+        };
+        row.count += 1; addMaterials(row.materials, m);
+        terminalMap.set(type, row);
+      }
+    });
+  });
+
+  const fittingBreakdown = [...fittingMap.values()]
+    .sort((a, b) => FITTING_TALLY_ORDER.indexOf(a.key) - FITTING_TALLY_ORDER.indexOf(b.key));
+  const order = END_OPTIONS.map(o => o.value);
+  const terminalBreakdown = [...terminalMap.values()]
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+
+  return { totalMaterials: total, fittingBreakdown, terminalBreakdown };
+}
+
+// ────────────────────────────────────────────────────────────
+// 状態
+// ────────────────────────────────────────────────────────────
+let routes = [];
+let selectedWall = null;
+let pipeKind = 'E';
+let pipeSize = null;
+let seq = 0;
+const nextId = (p) => p + (++seq);
+
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const getLocation = () => document.querySelector('input[name="location"]:checked').value;
+const sizeLabel = () => pipeSize ? PIPE_KINDS[pipeKind].shortLabel + pipeSize : '';
+
+function availableFittings() {
+  if (!pipeSize) return [];
+  return FITTING_AVAILABILITY[pipeKind][pipeSize] || [];
+}
+
+function createBranch() { return { id: nextId('b'), length: 0, end: null }; }
+
+function createJunction(kind) {
+  const base = { id: nextId('j'), kind, lengthAfter: 0 };
+  // 丸ボックスの既定は直角2方出(曲がり)。現場で最も多く、分岐0本で完結するため。
+  if (kind === 'round_box') return { ...base, roundBoxDirection: 'right2', branches: [] };
+  if (kind === 'elbow')     return { ...base, elbowShape: 'LL' };
+  if (kind === 'device')    return { ...base, deviceConnection: 'connector' };
+  // プールボックスは通過するだけの使い方もあるので0本から始める
+  if (kind === 'pullbox')   return { ...base, branches: [] };
+  return base;
+}
+
+// 丸ボックスの分岐本数を方向に合わせる。方向が本数の正であり、
+// 「4方出なのに分岐1本」のような、方数と実態が食い違う状態を作らせない。
+function syncBranches(j) {
+  const want = ROUND_BOX_BRANCH_COUNT[j.roundBoxDirection || 'right2'];
+  const cur = j.branches || [];
+  if (cur.length === want) return cur;
+  if (cur.length > want) return cur.slice(0, want);
+  return cur.concat(Array.from({ length: want - cur.length }, () => createBranch()));
+}
+
+// ────────────────────────────────────────────────────────────
+// 呼び径
+// ────────────────────────────────────────────────────────────
+function renderSizes() {
+  document.getElementById('size-grid').innerHTML = PIPE_KINDS[pipeKind].sizes.map(s =>
+    `<button class="size-btn${pipeSize === s ? ' selected' : ''}" onclick="selectSize(${s})">${PIPE_KINDS[pipeKind].shortLabel}${s}</button>`
+  ).join('');
+  const hint = document.getElementById('size-hint');
+  if (!pipeSize) { hint.textContent = '呼び径によって使える役物が変わります'; return; }
+  const n = availableFittings().length;
+  hint.textContent = n < ALL_FITTINGS.length
+    ? `${sizeLabel()}：使える役物は${n}種類です（大口径では箱物・エルボの設定がありません）`
+    : `${sizeLabel()}：役物はすべて選べます`;
+}
+
+function selectSize(s) {
+  pipeSize = (pipeSize === s) ? null : s;
+  // 呼びを変えると選べない役物が出るので、外れたものは差し替える
+  if (pipeSize) {
+    const ok = availableFittings();
+    routes.forEach(r => r.junctions.forEach(j => {
+      if (!ok.includes(j.kind)) Object.assign(j, createJunction(ok[0]), { id: j.id, lengthAfter: j.lengthAfter });
+    }));
+  }
+  renderSizes(); renderRoutes(); hideResult();
+}
+
+function onPipeKindChange() {
+  pipeKind = document.querySelector('input[name="pipekind"]:checked').value;
+  pipeSize = null;
+  renderSizes(); renderRoutes(); hideResult();
+}
+
+function onTopChange() { hideResult(); }
+
+// ────────────────────────────────────────────────────────────
+// ルート入力
+// ────────────────────────────────────────────────────────────
+function addRoute() {
+  routes.push({ id: nextId('r'), start: 'pullbox', length: 0, junctions: [], end: 'cap' });
+  renderRoutes(); hideResult();
+}
+function removeRoute(id) { routes = routes.filter(r => r.id !== id); renderRoutes(); hideResult(); }
+const findRoute = (id) => routes.find(r => r.id === id);
+const findJunction = (rid, jid) => (findRoute(rid).junctions || []).find(j => j.id === jid);
+
+function addJunction(rid) {
+  const ok = availableFittings();
+  if (!ok.length) return;
+  findRoute(rid).junctions.push(createJunction(ok[0]));
+  renderRoutes(); hideResult();
+}
+function removeJunction(rid, jid) {
+  const r = findRoute(rid);
+  r.junctions = r.junctions.filter(j => j.id !== jid);
+  renderRoutes(); hideResult();
+}
+
+function setEnd(rid, which, v)     { findRoute(rid)[which] = v; hideResult(); }
+function setLength(rid, v)         { findRoute(rid).length = parseFloat(v) || 0; hideResult(); }
+function setJunctionLength(rid, jid, v) { findJunction(rid, jid).lengthAfter = parseFloat(v) || 0; hideResult(); }
+function setBranchLength(rid, jid, bid, v) {
+  findJunction(rid, jid).branches.find(b => b.id === bid).length = parseFloat(v) || 0; hideResult();
+}
+function setBranchEnd(rid, jid, bid, v) {
+  findJunction(rid, jid).branches.find(b => b.id === bid).end = v || null; hideResult();
+}
+
+function setJunctionKind(rid, jid, kind) {
+  const r = findRoute(rid);
+  const i = r.junctions.findIndex(j => j.id === jid);
+  const old = r.junctions[i];
+  r.junctions[i] = { ...createJunction(kind), id: old.id, lengthAfter: old.lengthAfter };
+  renderRoutes(); hideResult();
+}
+function setRoundBoxDirection(rid, jid, dir) {
+  const j = findJunction(rid, jid);
+  j.roundBoxDirection = dir;
+  j.branches = syncBranches(j);
+  renderRoutes(); hideResult();
+}
+function setElbowShape(rid, jid, v)  { findJunction(rid, jid).elbowShape = v; renderRoutes(); hideResult(); }
+function setDeviceConn(rid, jid, v)  { findJunction(rid, jid).deviceConnection = v; renderRoutes(); hideResult(); }
+function addPullboxBranch(rid, jid)  { findJunction(rid, jid).branches.push(createBranch()); renderRoutes(); hideResult(); }
+function removePullboxBranch(rid, jid, bid) {
+  const j = findJunction(rid, jid);
+  j.branches = j.branches.filter(b => b.id !== bid);
+  renderRoutes(); hideResult();
+}
+
+// showSub: 括弧書きの補足を出すか。役物の「種類」では出さない
+// （すぐ下に「方向」「形状」が並ぶので重複し、幅も足りずに文字が切れる）
+function selectHtml(onchange, options, current, placeholder, showSub) {
+  const opts = (placeholder ? `<option value="">${esc(placeholder)}</option>` : '') +
+    options.map(o => `<option value="${o.value}"${o.value === current ? ' selected' : ''}>${esc(o.label)}${showSub && o.sub ? '（' + esc(o.sub) + '）' : ''}</option>`).join('');
+  return `<select class="rt-select" onchange="${onchange}">${opts}</select>`;
+}
+
+function junctionHtml(r, j, idx) {
+  const ok = availableFittings();
+  const kindOptions = FITTING_OPTIONS.filter(o => ok.includes(o.value));
+  let sub = '';
+  if (j.kind === 'round_box') {
+    sub = `<div class="rt-row"><span class="rt-label">方向</span>${selectHtml(`setRoundBoxDirection('${r.id}','${j.id}',this.value)`, ROUND_BOX_DIRECTION_OPTIONS, j.roundBoxDirection, null, true)}</div>`;
+  } else if (j.kind === 'elbow') {
+    sub = `<div class="rt-row"><span class="rt-label">形状</span>${selectHtml(`setElbowShape('${r.id}','${j.id}',this.value)`, ELBOW_SHAPE_OPTIONS, j.elbowShape, null, true)}</div>`;
+  } else if (j.kind === 'device') {
+    sub = `<div class="rt-row"><span class="rt-label">接続方法</span>${selectHtml(`setDeviceConn('${r.id}','${j.id}',this.value)`, DEVICE_CONNECTION_OPTIONS, j.deviceConnection, null, true)}</div>`;
+  }
+
+  const branches = branchesOf(j);
+  const branchHtml = branches.map((b, bi) => `
+    <div class="rt-branch">
+      <div class="rt-branch-head">分岐 ${bi + 1}${j.kind === 'pullbox' ? `<button class="btn-remove-route" onclick="removePullboxBranch('${r.id}','${j.id}','${b.id}')">×</button>` : ''}</div>
+      <div class="rt-row"><span class="rt-label">延長</span>
+        <input class="rt-num" type="number" min="0" step="0.1" inputmode="decimal" value="${b.length || ''}" placeholder="例：3"
+               oninput="setBranchLength('${r.id}','${j.id}','${b.id}',this.value)"><span class="rt-unit">m</span></div>
+      <div class="rt-row"><span class="rt-label">終端</span>${selectHtml(`setBranchEnd('${r.id}','${j.id}','${b.id}',this.value)`, END_OPTIONS, b.end, '選択してください')}</div>
+    </div>`).join('');
+
+  const addBranch = j.kind === 'pullbox'
+    ? `<button class="rt-add-sub" onclick="addPullboxBranch('${r.id}','${j.id}')">＋ 分岐を追加</button>` : '';
+
+  return `
+    <div class="rt-junction">
+      <div class="rt-junction-head">
+        <span class="rt-junction-no">役物 ${idx + 1}</span>
+        <button class="btn-remove-route" onclick="removeJunction('${r.id}','${j.id}')">×</button>
+      </div>
+      <div class="rt-row"><span class="rt-label">種類</span>${selectHtml(`setJunctionKind('${r.id}','${j.id}',this.value)`, kindOptions, j.kind)}</div>
+      ${sub}
+      ${branchHtml}
+      ${addBranch}
+      <div class="rt-row"><span class="rt-label">次の延長</span>
+        <input class="rt-num" type="number" min="0" step="0.1" inputmode="decimal" value="${j.lengthAfter || ''}" placeholder="例：5"
+               oninput="setJunctionLength('${r.id}','${j.id}',this.value)"><span class="rt-unit">m</span></div>
+    </div>`;
+}
+
+function renderRoutes() {
+  const list = document.getElementById('route-list');
+  list.innerHTML = routes.map((r, i) => `
+    <div class="route-card">
+      <div class="route-card-header">
+        <span class="route-title">ルート ${i + 1}</span>
+        <button class="btn-remove-route" onclick="removeRoute('${r.id}')">×</button>
+      </div>
+      <div class="route-card-body">
+        <div class="rt-row"><span class="rt-label">始端</span>${selectHtml(`setEnd('${r.id}','start',this.value)`, END_OPTIONS, r.start)}</div>
+        <div class="rt-row"><span class="rt-label">延長</span>
+          <input class="rt-num" type="number" min="0" step="0.1" inputmode="decimal" value="${r.length || ''}" placeholder="例：10"
+                 oninput="setLength('${r.id}',this.value)"><span class="rt-unit">m</span></div>
+        ${r.junctions.map((j, k) => junctionHtml(r, j, k)).join('')}
+        <button class="rt-add-sub" onclick="addJunction('${r.id}')"${pipeSize ? '' : ' disabled'}>
+          ${pipeSize ? '＋ 途中の役物を追加' : '呼びを選ぶと役物を追加できます'}
+        </button>
+        <div class="rt-row"><span class="rt-label">終端</span>${selectHtml(`setEnd('${r.id}','end',this.value)`, END_OPTIONS, r.end)}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ────────────────────────────────────────────────────────────
+// 壁の材質
+// ────────────────────────────────────────────────────────────
   const WALL_DATA = {
     concrete: {
       label: 'コンクリート',
@@ -555,12 +1041,29 @@
       ],
       warn: 'ドリルビスの長さは鉄骨の板厚＋サドル厚を考慮して選定。板厚2.3mm超はサイズ注意。'
     },
+    // 軽天(LGS)は steel と分けている。steel の warn は「板厚2.3mm超はサイズ注意」で
+    // 重量鉄骨を想定した内容であり、薄物である軽天下地には当てはまらない。
+    // 「イエロービス」「金ビス」はどちらも同じものを指す現場の呼び名。
+    // 製品名・型番は現物とカタログを確認していないため書いていない。
+    lgs: {
+      label: '軽天（LGS下地）',
+      items: [
+        { tag: '主', label: 'イエロービス（金ビス）' },
+        { tag: '主', label: 'タッピングビス' },
+      ],
+      warn: '軽天下地は薄物のためビスの保持力が低い。ビスはスタッド・野縁など下地材の芯に打つこと。ボード面だけへの固定は避け、重量のある配管は吊りボルト等での支持を検討する。'
+    },
     board: {
       label: '石膏ボード',
       items: [
         { tag: '下地あり', label: '木ビス（下地の柱に打つ）' },
         { tag: '下地なし', label: 'ボードアンカー / 中空アンカー' },
+        // 2枚貼りは「下地なし」の中に隠れていた条件。厚みが稼げるぶんビスが効く。
+        { tag: '2枚貼り', label: 'イエロービス（金ビス）' },
       ],
+      // 「小さいサイズの配管ならボード面でも許容範囲」という回答も得ているが、
+      // warn には書いていない。「小さい」の境界が決まっておらず、書くと
+      // 「ボードに留めてよい」とだけ読まれかねないため。
       warn: '⚠️ ボードのみへの固定は荷重限界が低い。重量のある配管は必ず下地に固定すること。'
     },
     block: {
@@ -573,276 +1076,98 @@
     },
   };
 
-  let selectedWall = null;
-
-  function selectWall(key) {
-    // 前の選択を解除
-    if (selectedWall) {
-      document.getElementById('wall-' + selectedWall).classList.remove('selected');
-    }
-    // 同じものをクリックしたら解除
-    if (selectedWall === key) {
-      selectedWall = null;
-      document.getElementById('fastener-card').classList.remove('visible');
-      return;
-    }
-    selectedWall = key;
-    document.getElementById('wall-' + key).classList.add('selected');
-
-    const data = WALL_DATA[key];
-    document.getElementById('fastener-title').textContent = '【' + data.label + '】固定方法の候補';
-
-    const itemsEl = document.getElementById('fastener-items');
-    itemsEl.innerHTML = data.items.map(item =>
-      `<div class="fastener-item">
-        <span class="tag ${item.tag === '主' || item.tag === '下地あり' ? 'tag-main' : 'tag-alt'}">${item.tag}</span>
-        <span>${item.label}</span>
-      </div>`
-    ).join('');
-
-    document.getElementById('fastener-warn').textContent = data.warn;
-    document.getElementById('fastener-card').classList.add('visible');
+function selectWall(key) {
+  if (selectedWall) document.getElementById('wall-' + selectedWall).classList.remove('selected');
+  if (selectedWall === key) {
+    selectedWall = null;
+    document.getElementById('fastener-card').style.display = 'none';
+    return;
   }
+  selectedWall = key;
+  document.getElementById('wall-' + key).classList.add('selected');
+  const data = WALL_DATA[key];
+  document.getElementById('fastener-title').textContent = '【' + data.label + '】固定方法の候補';
+  document.getElementById('fastener-items').innerHTML = data.items.map(it =>
+    `<div class="fastener-item"><span class="${it.tag === '主' || it.tag === '下地あり' ? 'tag-main' : 'tag-alt'}">${esc(it.tag)}</span><span>${esc(it.label)}</span></div>`
+  ).join('');
+  document.getElementById('fastener-warn').textContent = data.warn;
+  document.getElementById('fastener-card').style.display = 'block';
+}
 
-  const END_OPTIONS = [
-    { value: 'pullbox',   label: 'プールボックス接続' },
-    { value: 'box',       label: '丸ボックス・角ボックス' },
-    { value: 'cap',       label: 'サンピーキャップ' },
-    { value: 'connector', label: 'コネクタのみ' },
-  ];
+// ────────────────────────────────────────────────────────────
+// 計算・表示
+// ────────────────────────────────────────────────────────────
+function hideResult() { document.getElementById('result').style.display = 'none'; }
+const showErr = (id, on) => { document.getElementById(id).style.display = on ? 'block' : 'none'; };
 
-  let routeCount = 0;
+function row(name, count, unit) {
+  return `<div class="result-item"><span class="name">${esc(name)}</span><span><span class="count">${count}</span><span class="unit">${unit}</span></span></div>`;
+}
 
-  function buildSelect(id) {
-    const sel = document.createElement('select');
-    sel.id = id;
-    END_OPTIONS.forEach(opt => {
-      const o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.label;
-      sel.appendChild(o);
-    });
-    return sel;
-  }
+function calculate() {
+  showErr('err-routes', false); showErr('err-length', false);
+  showErr('err-size', false);   showErr('err-branch', false);
 
-  function renumberRoutes() {
-    document.querySelectorAll('.route-card').forEach((card, i) => {
-      card.querySelector('.route-title').textContent = 'ルート ' + (i + 1);
-    });
-  }
+  if (!pipeSize)      { showErr('err-size', true);   hideResult(); return; }
+  if (!routes.length) { showErr('err-routes', true); hideResult(); return; }
 
-  function addRoute() {
-    routeCount++;
-    const idx = routeCount;
+  const totalLen = routes.reduce((s, r) => s + routeSegments(r).reduce((a, b) => a + b, 0), 0);
+  if (totalLen <= 0)  { showErr('err-length', true); hideResult(); return; }
 
-    const card = document.createElement('div');
-    card.className = 'route-card';
-    card.id = 'route-' + idx;
+  // 終端未選択の分岐があると材料を計上できないので、計算自体を止める
+  const missing = routes.some(r => (r.junctions || []).some(j => branchesOf(j).some(b => !b.end)));
+  if (missing)        { showErr('err-branch', true); hideResult(); return; }
 
-    // ヘッダー
-    const header = document.createElement('div');
-    header.className = 'route-card-header';
-    const title = document.createElement('span');
-    title.className = 'route-title';
-    title.textContent = 'ルート ' + idx;
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn-remove-route';
-    removeBtn.textContent = '×';
-    removeBtn.onclick = () => removeRoute(idx);
-    header.appendChild(title);
-    header.appendChild(removeBtn);
+  const res = calculateKankinkan(routes);
+  const t = res.totalMaterials;
+  const loc = getLocation();
+  const kind = PIPE_KINDS[pipeKind];
 
-    // ボディ
-    const body = document.createElement('div');
-    body.className = 'route-card-body';
+  document.getElementById('sec-pipe').innerHTML =
+    row(`金属管（${kind.shortLabel}管 / ${kind.label}）${sizeLabel()}`, t.pipes, '本') +
+    row(loc === 'outdoor' ? '防水カップリング' : 'カップリング', t.couplings, '個') +
+    row('サドル等（支持材）', t.saddles, '個');
 
-    // 延長入力
-    const lenRow = document.createElement('div');
-    lenRow.className = 'route-length-row';
-    const lenLabel = document.createElement('span');
-    lenLabel.className = 'route-length-label';
-    lenLabel.textContent = '延長';
-    const lenInput = document.createElement('input');
-    lenInput.type = 'number';
-    lenInput.id = 'len-' + idx;
-    lenInput.placeholder = '例：10';
-    lenInput.min = '0';
-    lenInput.step = '0.1';
-    const lenUnit = document.createElement('span');
-    lenUnit.className = 'unit';
-    lenUnit.textContent = 'm';
-    lenRow.appendChild(lenLabel);
-    lenRow.appendChild(lenInput);
-    lenRow.appendChild(lenUnit);
+  document.getElementById('sec-connect').innerHTML =
+    row('コネクタ', t.connector, '個') +
+    row('ロックナット', t.locknut, '個') +
+    row('絶縁ブッシング', t.bushing, '個') +
+    row('エンドキャップ（サンピーキャップ）', t.endcap, '個');
 
-    // 始端
-    const startRow = document.createElement('div');
-    startRow.className = 'route-end';
-    const startLabel = document.createElement('span');
-    startLabel.className = 'route-end-label';
-    startLabel.textContent = '始端';
-    const startSel = buildSelect('start-' + idx);
-    startRow.appendChild(startLabel);
-    startRow.appendChild(startSel);
+  const fittings = res.fittingBreakdown;
+  document.getElementById('lbl-fitting').style.display = fittings.length ? 'block' : 'none';
+  document.getElementById('sec-fitting').innerHTML = fittings.map(f =>
+    row(f.label + (f.needsSize ? `（${sizeLabel()}用）` : ''), f.count, f.unit)
+  ).join('');
 
-    // 区切り
-    const divider = document.createElement('div');
-    divider.className = 'route-divider';
-    const divSpan = document.createElement('span');
-    divSpan.textContent = '配管';
-    divider.appendChild(divSpan);
+  document.getElementById('sec-terminal').innerHTML = res.terminalBreakdown.map(x =>
+    row(x.orderLabel + (x.needsSize ? `（${sizeLabel()}用）` : ''), x.count, x.isBox ? '個' : 'か所')
+  ).join('');
 
-    // 終端
-    const endRow = document.createElement('div');
-    endRow.className = 'route-end';
-    const endLabel = document.createElement('span');
-    endLabel.className = 'route-end-label';
-    endLabel.textContent = '終端';
-    const endSel = buildSelect('end-' + idx);
-    endSel.value = 'pullbox';
-    endRow.appendChild(endLabel);
-    endRow.appendChild(endSel);
+  const hasPullbox = res.terminalBreakdown.some(x => x.key === 'pullbox')
+    || fittings.some(f => f.key === 'pullbox');
+  document.getElementById('note-caulk').style.display =
+    (loc === 'outdoor' && hasPullbox) ? 'block' : 'none';
 
-    body.appendChild(lenRow);
-    body.appendChild(startRow);
-    body.appendChild(divider);
-    body.appendChild(endRow);
+  const el = document.getElementById('result');
+  el.style.display = 'block';
+  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
 
-    card.appendChild(header);
-    card.appendChild(body);
+function resetAll() {
+  routes = []; pipeSize = null; seq = 0;
+  document.getElementById('indoor').checked = true;
+  document.getElementById('pk-E').checked = true;
+  pipeKind = 'E';
+  if (selectedWall) { document.getElementById('wall-' + selectedWall).classList.remove('selected'); selectedWall = null; }
+  document.getElementById('fastener-card').style.display = 'none';
+  ['err-routes','err-length','err-size','err-branch'].forEach(id => showErr(id, false));
+  hideResult(); renderSizes(); addRoute();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-    document.getElementById('route-list').appendChild(card);
-    document.getElementById('err-routes').classList.remove('visible');
-    renumberRoutes();
-    lenInput.focus();
-  }
-
-  function removeRoute(idx) {
-    const el = document.getElementById('route-' + idx);
-    if (el) el.remove();
-    renumberRoutes();
-  }
-
-  // 施工方法ごとの材料カウント
-  function countMaterials(type) {
-    return {
-      connector: type === 'pullbox' || type === 'connector' ? 1 : 0,
-      locknut:   type === 'pullbox' ? 1 : 0,
-      bushing:   type === 'pullbox' ? 1 : 0,
-      endcap:    type === 'cap'     ? 1 : 0,
-    };
-  }
-
-  function calculate() {
-    const location = document.querySelector('input[name="location"]:checked').value;
-    const routeCards = document.querySelectorAll('.route-card');
-
-    let valid = true;
-    document.getElementById('err-routes').classList.remove('visible');
-
-    if (routeCards.length === 0) {
-      document.getElementById('err-routes').classList.add('visible');
-      valid = false;
-    }
-    if (!valid) return;
-
-    let totalLength = 0;
-    let connectors = 0, locknuts = 0, bushings = 0, endcaps = 0;
-    let tPullbox = 0, tBox = 0, tCap = 0, tConnector = 0;
-
-    routeCards.forEach(card => {
-      const idNum = card.id.replace('route-', '');
-      const len = parseFloat(document.getElementById('len-' + idNum).value) || 0;
-      totalLength += len;
-
-      const startType = document.getElementById('start-' + idNum).value;
-      const endType   = document.getElementById('end-'   + idNum).value;
-
-      [startType, endType].forEach(type => {
-        if (type === 'pullbox')   tPullbox++;
-        if (type === 'box')       tBox++;
-        if (type === 'cap')       tCap++;
-        if (type === 'connector') tConnector++;
-      });
-
-      const s = countMaterials(startType);
-      const e = countMaterials(endType);
-
-      connectors += s.connector + e.connector;
-      locknuts   += s.locknut   + e.locknut;
-      bushings   += s.bushing   + e.bushing;
-      endcaps    += s.endcap    + e.endcap;
-    });
-
-    if (totalLength <= 0) {
-      document.getElementById('err-routes').textContent = '延長を1か所以上入力してください';
-      document.getElementById('err-routes').classList.add('visible');
-      return;
-    }
-
-    const pipes     = Math.ceil(totalLength / PIPE_LENGTH);
-    const couplings = Math.max(0, pipes - routeCards.length);
-    const saddles   = Math.ceil(totalLength / SADDLE_INTERVAL);
-
-    document.getElementById('r-pipe').textContent      = pipes;
-    document.getElementById('r-coupling').textContent  = couplings;
-    document.getElementById('r-saddle').textContent    = saddles;
-    document.getElementById('r-connector').textContent = connectors;
-    document.getElementById('r-locknut').textContent   = locknuts;
-    document.getElementById('r-bushing').textContent   = bushings;
-    document.getElementById('r-endcap').textContent    = endcaps;
-
-    document.getElementById('r-t-pullbox').textContent   = tPullbox;
-    document.getElementById('r-t-box').textContent       = tBox;
-    document.getElementById('r-t-cap').textContent       = tCap;
-    document.getElementById('r-t-connector').textContent = tConnector;
-
-    document.getElementById('row-t-pullbox').classList.toggle('hidden',   tPullbox   === 0);
-    document.getElementById('row-t-box').classList.toggle('hidden',       tBox       === 0);
-    document.getElementById('row-t-cap').classList.toggle('hidden',       tCap       === 0);
-    document.getElementById('row-t-connector').classList.toggle('hidden', tConnector === 0);
-
-    document.getElementById('row-connector').classList.toggle('hidden', connectors === 0);
-    document.getElementById('row-locknut').classList.toggle('hidden',   locknuts   === 0);
-    document.getElementById('row-bushing').classList.toggle('hidden',   bushings   === 0);
-    document.getElementById('row-endcap').classList.toggle('hidden',    endcaps    === 0);
-
-    const pipeLabel = document.getElementById('pipe-label');
-    const note      = document.getElementById('result-note');
-
-    if (location === 'outdoor') {
-      pipeLabel.textContent = '金属管（G管 / 厚鋼電線管）';
-      document.getElementById('coupling-label').textContent = '防水カップリング';
-      note.innerHTML =
-        '📍 <strong>材質推奨：どぶ漬け（溶融亜鉛メッキ）またはステンレス製</strong>を使用してください。<br>' +
-        '屋外は腐食リスクがあるため、一般品（黒管）の使用は避けること。<br>' +
-        '計算値は最低限の数量です。+10%程度の余裕を推奨します。';
-    } else {
-      pipeLabel.textContent = '金属管（E管 / ねじなし電線管）';
-      document.getElementById('coupling-label').textContent = 'カップリング';
-      note.innerHTML =
-        '計算値は最低限の数量です。損失・予備を考慮して+10%程度の余裕を持たせることを推奨します。';
-    }
-
-    // 屋外 × プールボックスの場合のみコーキング注記を表示
-    const showCaulk = location === 'outdoor' && tPullbox > 0;
-    document.getElementById('caulk-note').style.display = showCaulk ? 'block' : 'none';
-
-    document.getElementById('result').classList.add('visible');
-    document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function reset() {
-    document.getElementById('route-list').innerHTML = '';
-    routeCount = 0;
-    document.getElementById('indoor').checked = true;
-    document.getElementById('result').classList.remove('visible');
-    document.getElementById('err-routes').textContent = 'ルートを1本以上追加してください';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  // 初期ルートを1本追加
-  addRoute();
+renderSizes();
+addRoute();
 </script>
 
 </body>
